@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>空腹抽血提醒</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { width: 100%; }
+  body {
+    font-family: "PingFang SC", "Microsoft YaHei", "SimHei", sans-serif;
+    background: #fff7e6;
+    color: #1a1a1a;
+    padding: 28px 20px 40px;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  .title {
+    font-size: 40px; font-weight: 900; letter-spacing: 2px;
+    color: #c0392b; margin-bottom: 26px; text-align: center;
+  }
+  .card {
+    width: 100%; max-width: 760px;
+    background: #ffffff; border: 4px solid #1a1a1a; border-radius: 18px;
+    padding: 34px 28px; box-shadow: 0 8px 24px rgba(0,0,0,.12);
+  }
+  .msg p {
+    font-size: 46px; font-weight: 900; line-height: 1.55;
+    letter-spacing: 1px; margin-bottom: 22px; text-align: center;
+  }
+  .msg p:last-child { margin-bottom: 0; }
+  .controls {
+    margin-top: 28px; width: 100%; max-width: 760px;
+    display: flex; flex-wrap: wrap; gap: 14px; justify-content: center;
+  }
+  .controls button {
+    font-size: 26px; font-weight: 800; padding: 16px 26px;
+    border: none; border-radius: 14px; cursor: pointer; min-width: 150px;
+    color: #fff; box-shadow: 0 4px 0 rgba(0,0,0,.25);
+    transition: transform .05s;
+  }
+  .controls button:active { transform: translateY(3px); box-shadow: 0 1px 0 rgba(0,0,0,.25); }
+  #btnStart { background: #27ae60; }
+  #btnPause { background: #f39c12; }
+  #btnStop  { background: #c0392b; }
+  #btnVoice { background: #2980b9; }
+  .hint { margin-top: 20px; font-size: 22px; font-weight: 700; color: #7f8c8d; text-align: center; }
+  @media (max-width: 600px) {
+    .msg p { font-size: 34px; }
+    .title { font-size: 30px; }
+    .controls button { font-size: 22px; padding: 14px 18px; min-width: 130px; }
+  }
+</style>
+</head>
+<body>
+  <h1 class="title">空腹抽血提醒</h1>
+  <div class="card">
+    <div class="msg" id="msg">
+      <p>大爷大妈，您好！明天您要做空腹抽血，千万别忘了两件最重要的事。</p>
+      <p>第一，今天晚上八点以后，就别再吃任何东西了，明早的早饭绝对不能吃。</p>
+      <p>第二，如果您平时有吃降压药，明天早上药还是得吃，喝一小口白开水咽下去就行，千万别停药。</p>
+      <p>明早出门前，记得带好身份证、医保卡和单子。您现在可以让家里人帮您设个明早的起床闹钟。祝您明天检查顺利！</p>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button id="btnStart">开始朗读</button>
+    <button id="btnPause">暂停 / 继续</button>
+    <button id="btnStop">停止</button>
+    <button id="btnVoice">切换男声 / 女声</button>
+  </div>
+  <div class="hint" id="hint">页面已就绪，将自动开始大声朗读。</div>
+
+<script>
+(function () {
+  var synth = window.speechSynthesis;
+  var voices = [];
+  var preferredFemale = ["Xiaoxiao", "Xiaoyi", "Huihui", "Tingting", "Meijia", "Xiaohan", "Xiaoxuan"];
+  var preferredMale   = ["Yunxi", "Yunjian", "Yunyang", "Kangkang", "Yunfeng", "Yunhao", "Yunze"];
+  var useMale = false;
+  var speaking = false;
+  var paused = false;
+
+  function loadVoices() {
+    voices = synth ? synth.getVoices() : [];
+  }
+  if (synth) {
+    loadVoices();
+    if (typeof synth.onvoiceschanged !== "undefined") {
+      synth.onvoiceschanged = loadVoices;
+    }
+  }
+
+  function pickVoice() {
+    if (!voices.length) return null;
+    var zh = voices.filter(function (v) { return /zh|cmn|Chinese/i.test(v.lang); });
+    var pool = zh.length ? zh : voices;
+    var want = useMale ? preferredMale : preferredFemale;
+    var hit = pool.find(function (v) {
+      return want.some(function (n) { return v.name.indexOf(n) !== -1; });
+    });
+    return hit || pool[0];
+  }
+
+  function speak() {
+    if (!synth) { setHint("当前浏览器不支持语音朗读，请用支持朗读的浏览器打开。"); return; }
+    synth.cancel();
+    var u = new SpeechSynthesisUtterance(document.getElementById("msg").innerText);
+    u.lang = "zh-CN";
+    u.rate = 0.92;     // 稍慢，方便老人听清
+    u.pitch = 1.0;
+    u.volume = 1.0;    // 最大音量
+    var v = pickVoice();
+    if (v) u.voice = v;
+    u.onend = function () { speaking = false; setHint("朗读完成。可点「开始朗读」重听。"); };
+    u.onerror = function () { speaking = false; setHint("朗读被中断，可再次点击开始。"); };
+    synth.speak(u);
+    speaking = true; paused = false;
+    setHint("正在大声朗读中……（音量已调至最大）");
+  }
+
+  function setHint(t) { document.getElementById("hint").textContent = t; }
+
+  document.getElementById("btnStart").addEventListener("click", speak);
+  document.getElementById("btnPause").addEventListener("click", function () {
+    if (!synth) return;
+    if (synth.speaking && !synth.paused) { synth.pause(); paused = true; setHint("已暂停。"); }
+    else if (synth.paused) { synth.resume(); paused = false; setHint("继续朗读……"); }
+  });
+  document.getElementById("btnStop").addEventListener("click", function () {
+    if (synth) { synth.cancel(); speaking = false; paused = false; setHint("已停止。"); }
+  });
+  document.getElementById("btnVoice").addEventListener("click", function () {
+    useMale = !useMale;
+    setHint("已切换为" + (useMale ? "男声" : "女声") + "。点「开始朗读」试听。");
+    if (synth) synth.cancel();
+    speaking = false; paused = false;
+  });
+
+  // 页面就绪后自动朗读；若浏览器要求用户交互，则提示点击
+  function auto() {
+    if (synth && voices.length) { speak(); }
+    else { setHint("请点击「开始朗读」按钮开始大声朗读。"); }
+  }
+  if (document.readyState === "complete") setTimeout(auto, 300);
+  else window.addEventListener("load", function () { setTimeout(auto, 300); });
+})();
+</script>
+</body>
+</html>
